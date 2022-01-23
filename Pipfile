@@ -1,0 +1,26 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+tqdm = "*"
+opencv-python = "*"
+pillow = "*"
+polygon3 = "*"
+torch = "*"
+torchvision = "*"
+torchnet = "*"
+typer = "*"
+ipykernel = "*"
+matplotlib = "*"
+black = "*"
+
+[dev-packages]
+black = "*"
+
+[requires]
+python_version = "3.9"
+
+[pipenv]
+allow_prereleases = true
