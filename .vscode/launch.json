@@ -6,14 +6,27 @@
     "configurations": [
     
         {
-            "name": "Python: Main File",
+            "name": "SmartDoc Video to Image",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/main.py",
             "console": "integratedTerminal",
             "args": [
+                "process-smartdoc",
                 "../data-doc/SmartDoc/",
                 "../data-doc/SmartDocProcessed/",
+            ]
+        },
+        {
+            "name": "Generate Document Training Data",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "console": "integratedTerminal",
+            "args": [
+                "document-data-generator",
+                "../data-doc/SmartDocProcessed/",
+                "../data-doc/document_training/",
             ]
         }
     ]
