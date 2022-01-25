@@ -98,7 +98,7 @@ def document_data_generator(
 
             corner_cords = target
 
-            for angle in range(0, 270, 90):
+            for angle in range(0, 271, 90):
                 img_rotate, gt_rotate = utils.rotate(img, corner_cords, angle)
                 for random_crop in range(0, 16):
                     counter += 1
@@ -110,6 +110,66 @@ def document_data_generator(
 
                     cv2.imwrite(str(dst / f_name), img_crop)
                     writer.writerow((f_name, tuple(list(gt_crop))))
+
+
+@app.command()
+def corner_data_generator(
+    src: pathlib.Path = typer.Argument(..., help="The path to the processed dataset"),
+    dst: pathlib.Path = typer.Argument(
+        ..., help="The path to store the generated corner data"
+    ),
+    dataset: Dataset = typer.Option(Dataset.SMARTDOC, help="The dataset to use"),
+):
+    """This command generates the data to be used for training the corner model."""
+    if dst.exists() and dst.is_file():
+        typer.echo("The destination path is a file.")
+        typer.Exit(code=1)
+    if not dst.exists():
+        dst.mkdir(parents=True)
+
+    if dataset == Dataset.SMARTDOC:
+        dataset_loader = dataprocessor.SmartDocDirectories(str(src))
+    # elif dataset == Dataset.SELFCOLLECTED:
+    #     dataset_test = dataprocessor.dataset.SelfCollectedDataset(src)
+    else:
+        typer.echo("Unknown dataset.")
+        typer.Exit(code=1)
+        return
+
+    import csv
+
+    with open(dst / "gt.csv", "a") as csvfile:
+        writer = csv.writer(
+            csvfile, delimiter=",", quotechar="|", quoting=csv.QUOTE_MINIMAL
+        )
+        counter = 0
+        for data_elem in tqdm(dataset_loader.myData):
+            img_path = data_elem[0]
+            target = data_elem[1].reshape((4, 2))
+            img = cv2.imread(img_path)
+
+            if dataset == Dataset.SELFCOLLECTED:
+                target = target / (img.shape[1], img.shape[0])
+                target = target * (1920, 1920)
+                img = cv2.resize(img, (1920, 1920))
+
+            corner_cords = target
+
+            for angle in range(0, 1, 90):
+                img_rotate, gt_rotate = utils.rotate(img, corner_cords, angle)
+                for random_crop in range(0, 1):
+                    img_list, gt_list = utils.get_corners(img_rotate, gt_rotate)
+                    for a in range(0, 4):
+                        counter += 1
+                        f_name = f"{str(counter).zfill(8)}.jpg"
+                        gt_store = list(np.array(gt_list[a]) / (300, 300))
+                        img_store = cv2.resize(img_list[a], (64, 64))
+                        cv2.imwrite(
+                            str(dst / f_name),
+                            img_store,
+                            [int(cv2.IMWRITE_JPEG_QUALITY), 80],
+                        )
+                        writer.writerow((f_name, tuple(gt_store)))
 
 
 if __name__ == "__main__":

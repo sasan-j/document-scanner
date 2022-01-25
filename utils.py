@@ -1,3 +1,4 @@
+import random
 import numpy as np
 import cv2
 
@@ -68,3 +69,155 @@ def random_crop(img, gt):
     bl = myGt[(tl_index + 3) % 4]
 
     return img, (tl, tr, br, bl)
+
+
+def __get_cords(cord, min_start, max_end, size=299, buf=5, random_scale=True):
+    # size = max(abs(cord-min_start), abs(cord-max_end))
+    iter = 0
+    if random_scale:
+        size /= random.randint(1, 4)
+    while (max_end - min_start) < size:
+        size = size * 0.9
+    temp = -1
+    while temp < 1:
+        temp = random.normalvariate(size / 2, size / 6)
+    x_start = max(cord - temp, min_start)
+    x_start = int(x_start)
+    if x_start >= cord:
+        print("XSTART AND CORD", x_start, cord)
+    assert x_start < cord
+    while (
+        (x_start < min_start) or (x_start + size > max_end) or (x_start + size <= cord)
+    ):
+        # x_start = random.randint(int(min(max(min_start, int(cord - size + buf)), cord - buf - 1)), cord - buf)
+        temp = -1
+        while temp < 1:
+            temp = random.normalvariate(size / 2, size / 6)
+        temp = max(temp, 1)
+        x_start = max(cord - temp, min_start)
+        x_start = int(x_start)
+        size = size * 0.995
+        iter += 1
+        if iter == 1000:
+            x_start = int(cord - (size / 2))
+            print("Gets here")
+            break
+    assert x_start >= 0
+    if x_start >= cord:
+        print("XSTART AND CORD", x_start, cord)
+    assert x_start < cord
+    assert x_start + size <= max_end
+    assert x_start + size > cord
+    return (x_start, int(x_start + size))
+
+
+def get_corners(img, gt):
+    gt = gt.astype(int)
+    list_of_points = {}
+    myGt = gt
+
+    myGtTemp = myGt * myGt
+    sum_array = myGtTemp.sum(axis=1)
+
+    tl_index = np.argmin(sum_array)
+    tl = myGt[tl_index]
+    tr = myGt[(tl_index + 1) % 4]
+    br = myGt[(tl_index + 2) % 4]
+    bl = myGt[(tl_index + 3) % 4]
+
+    list_of_points["tr"] = tr
+    list_of_points["tl"] = tl
+    list_of_points["br"] = br
+    list_of_points["bl"] = bl
+    gt_list = []
+    images_list = []
+    for k, v in list_of_points.items():
+
+        if k == "tl":
+            cords_x = __get_cords(
+                v[0],
+                0,
+                list_of_points["tr"][0],
+                buf=10,
+                size=abs(list_of_points["tr"][0] - v[0]),
+            )
+            cords_y = __get_cords(
+                v[1],
+                0,
+                list_of_points["bl"][1],
+                buf=10,
+                size=abs(list_of_points["bl"][1] - v[1]),
+            )
+            # print cords_y, cords_x
+            gt = (v[0] - cords_x[0], v[1] - cords_y[0])
+
+            cut_image = img[cords_y[0] : cords_y[1], cords_x[0] : cords_x[1]]
+
+        if k == "tr":
+            cords_x = __get_cords(
+                v[0],
+                list_of_points["tl"][0],
+                img.shape[1],
+                buf=10,
+                size=abs(list_of_points["tl"][0] - v[0]),
+            )
+            cords_y = __get_cords(
+                v[1],
+                0,
+                list_of_points["br"][1],
+                buf=10,
+                size=abs(list_of_points["br"][1] - v[1]),
+            )
+            # print cords_y, cords_x
+            gt = (v[0] - cords_x[0], v[1] - cords_y[0])
+
+            cut_image = img[cords_y[0] : cords_y[1], cords_x[0] : cords_x[1]]
+
+        if k == "bl":
+            cords_x = __get_cords(
+                v[0],
+                0,
+                list_of_points["br"][0],
+                buf=10,
+                size=abs(list_of_points["br"][0] - v[0]),
+            )
+            cords_y = __get_cords(
+                v[1],
+                list_of_points["tl"][1],
+                img.shape[0],
+                buf=10,
+                size=abs(list_of_points["tl"][1] - v[1]),
+            )
+            # print cords_y, cords_x
+            gt = (v[0] - cords_x[0], v[1] - cords_y[0])
+
+            cut_image = img[cords_y[0] : cords_y[1], cords_x[0] : cords_x[1]]
+
+        if k == "br":
+            cords_x = __get_cords(
+                v[0],
+                list_of_points["bl"][0],
+                img.shape[1],
+                buf=10,
+                size=abs(list_of_points["bl"][0] - v[0]),
+            )
+            cords_y = __get_cords(
+                v[1],
+                list_of_points["tr"][1],
+                img.shape[0],
+                buf=10,
+                size=abs(list_of_points["tr"][1] - v[1]),
+            )
+            # print cords_y, cords_x
+            gt = (v[0] - cords_x[0], v[1] - cords_y[0])
+
+            cut_image = img[cords_y[0] : cords_y[1], cords_x[0] : cords_x[1]]
+
+        # cv2.circle(cut_image, gt, 2, (255, 0, 0), 6)
+        mah_size = cut_image.shape
+        cut_image = cv2.resize(cut_image, (300, 300))
+        a = int(gt[0] * 300 / mah_size[1])
+        b = int(gt[1] * 300 / mah_size[0])
+        images_list.append(cut_image)
+        gt_list.append((a, b))
+    return images_list, gt_list
