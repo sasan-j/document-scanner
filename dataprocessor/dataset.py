@@ -1,14 +1,23 @@
+import csv
+from enum import Enum
 import logging
+import os
 import pathlib
-from typing import List
+from typing import List, Union
 
 import numpy as np
+from torchvision import transforms
 import xml.etree.ElementTree as ET
 
 import utils
 
 
 logger = logging.getLogger(__name__)
+
+
+class DatasetType(str, Enum):
+    SMARTDOC = "smartdoc"
+    SELFCOLLECTED = "selfcollected"
 
 
 class Dataset:
@@ -83,3 +92,108 @@ class SmartDocDirectories(Dataset):
         self.myData = []
         for a in range(len(self.data)):
             self.myData.append([self.data[a], self.labels[a]])
+
+
+class SmartDoc(Dataset):
+    """
+    Class to load the data from the SmartDoc dataset
+    """
+
+    def __init__(self, directory="data"):
+        super().__init__("smartdoc")
+        self.data = []
+        self.labels = []
+        self.train_transform = transforms.Compose(
+            [
+                transforms.Resize([32, 32]),
+                transforms.ColorJitter(1.5, 1.5, 0.9, 0.5),
+                transforms.ToTensor(),
+            ]
+        )
+
+        self.test_transform = transforms.Compose(
+            [transforms.Resize([32, 32]), transforms.ToTensor()]
+        )
+        for d in directory:
+            self.directory = d
+            logger.info("Pass train/test data paths here")
+            self.classes_list = {}
+
+            file_names = []
+            print(self.directory, "gt.csv")
+            with open(os.path.join(self.directory, "gt.csv"), "r") as csvfile:
+                spamreader = csv.reader(
+                    csvfile, delimiter=",", quotechar="|", quoting=csv.QUOTE_MINIMAL
+                )
+                import ast
+
+                for row in spamreader:
+                    file_names.append(row[0])
+                    self.data.append(os.path.join(self.directory, row[0]))
+                    test = row[1].replace("array", "")
+                    self.labels.append((ast.literal_eval(test)))
+        self.labels = np.array(self.labels)
+
+        self.labels = np.reshape(self.labels, (-1, 8))
+        logger.debug("Ground Truth Shape: %s", str(self.labels.shape))
+        logger.debug("Data shape %s", str(len(self.data)))
+
+        self.myData = [self.data, self.labels]
+
+
+class SmartDocCorner(Dataset):
+    """
+    Class to load the data from the SmartDoc corner dataset
+    """
+
+    def __init__(self, directory="data"):
+        super().__init__("smartdoc")
+        self.data = []
+        self.labels = []
+        self.train_transform = transforms.Compose(
+            [
+                transforms.Resize([32, 32]),
+                transforms.ColorJitter(0.5, 0.5, 0.5, 0.5),
+                transforms.ToTensor(),
+            ]
+        )
+
+        self.test_transform = transforms.Compose(
+            [transforms.Resize([32, 32]), transforms.ToTensor()]
+        )
+        for d in directory:
+            self.directory = d
+            logger.info("Pass train/test data paths here")
+            self.classes_list = {}
+            file_names = []
+            with open(os.path.join(self.directory, "gt.csv"), "r") as csvfile:
+                spamreader = csv.reader(
+                    csvfile, delimiter=",", quotechar="|", quoting=csv.QUOTE_MINIMAL
+                )
+                import ast
+
+                for row in spamreader:
+                    file_names.append(row[0])
+                    self.data.append(os.path.join(self.directory, row[0]))
+                    test = row[1].replace("array", "")
+                    self.labels.append((ast.literal_eval(test)))
+        self.labels = np.array(self.labels)
+
+        self.labels = np.reshape(self.labels, (-1, 2))
+        logger.debug("Ground Truth Shape: %s", str(self.labels.shape))
+        logger.debug("Data shape %s", str(len(self.data)))
+
+        self.myData = [self.data, self.labels]
+
+
+class DatasetFactory:
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def get_dataset(directory, type="document") -> Union[SmartDoc, SmartDocCorner]:
+        if type == "document":
+            return SmartDoc(directory)
+            # then it must be corner
+        else:
+            return SmartDocCorner(directory)
