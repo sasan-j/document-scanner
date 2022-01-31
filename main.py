@@ -1,21 +1,28 @@
 from enum import Enum
+import logging
 import pathlib
 import shutil
 from subprocess import call
 from typing import List
+
 
 import cv2
 import numpy as np
 import typer
 from tqdm import tqdm
 import torch
+from torch.utils.data import DataLoader
+
 
 import dataprocessor
 from dataprocessor import DatasetType
-import utils
 from experiment import Experiment
+import models
+import trainer
+import utils
 
 app = typer.Typer()
+logger = logging.getLogger(__name__)
 
 
 @app.command()
@@ -238,7 +245,7 @@ def train(
     cuda = cuda and torch.cuda.is_available()
 
     # Get the right dataset based on model_type
-    dataset = dataprocessor.DatasetFactory.get_dataset(train_dir, model_type)
+    dataset_train = dataprocessor.DatasetFactory.get_dataset(train_dir, model_type)
     dataset_val = dataprocessor.DatasetFactory.get_dataset(valid_dir, model_type)
 
     # Fix the seed.
@@ -247,74 +254,91 @@ def train(
         torch.cuda.manual_seed(seed)
 
     train_dataset_loader = dataprocessor.LoaderFactory.get_loader(
-        loader, dataset.myData, transform=dataset.train_transform, cuda=cuda
+        loader, dataset_train.myData, transform=dataset_train.train_transform, cuda=cuda
     )
     # Loader used for training data
     val_dataset_loader = dataprocessor.LoaderFactory.get_loader(
-        loader, dataset_val.myData, transform=dataset.test_transform, cuda=cuda
+        loader, dataset_val.myData, transform=dataset_train.test_transform, cuda=cuda
     )
     kwargs = {"num_workers": 1, "pin_memory": True} if cuda else {}
 
-    # # Iterator to iterate over training data.
-    # train_iterator = torch.utils.data.DataLoader(train_dataset_loader,
-    #                                             batch_size=args.batch_size, shuffle=True, **kwargs)
-    # # Iterator to iterate over training data.
-    # val_iterator = torch.utils.data.DataLoader(val_dataset_loader,
-    #                                         batch_size=args.batch_size, shuffle=True, **kwargs)
+    # Iterator to iterate over training data.
+    train_iterator = DataLoader(
+        train_dataset_loader, batch_size=batch_size, shuffle=True, **kwargs
+    )
+    # Iterator to iterate over training data.
+    val_iterator = DataLoader(
+        val_dataset_loader, batch_size=batch_size, shuffle=True, **kwargs
+    )
 
     # # Get the required model
-    # myModel = model.ModelFactory.get_model(args.model_type, args.dataset)
-    # if cuda:
-    #     myModel.cuda()
+    myModel = models.ModelFactory.get_model(model, model_type)
+    if cuda:
+        myModel.cuda()
 
-    # # Should I pretrain the model on CIFAR?
-    # if args.pretrain:
-    #     trainset = dataprocessor.DatasetFactory.get_dataset(None, "CIFAR")
-    #     train_iterator_cifar = torch.utils.data.DataLoader(trainset, batch_size=32, shuffle=True, num_workers=2)
+    # Should I pretrain the model on CIFAR?
+    if pretrain:
+        trainset = dataprocessor.DatasetFactory.get_dataset(None, "CIFAR")
+        train_iterator_cifar = DataLoader(
+            trainset, batch_size=32, shuffle=True, num_workers=2
+        )
 
-    #     # Define the optimizer used in the experiment
-    #     cifar_optimizer = torch.optim.SGD(myModel.parameters(), args.lr, momentum=args.momentum,
-    #                                     weight_decay=args.decay, nesterov=True)
+        # Define the optimizer used in the experiment
+        cifar_optimizer = torch.optim.SGD(
+            myModel.parameters(),
+            lr,
+            momentum=momentum,
+            weight_decay=decay,
+            nesterov=True,
+        )
 
-    #     # Trainer object used for training
-    #     cifar_trainer = trainer.CIFARTrainer(train_iterator_cifar, myModel, args.cuda, cifar_optimizer)
+        # Trainer object used for training
+        cifar_trainer = trainer.CIFARTrainer(
+            train_iterator_cifar, myModel, cuda, cifar_optimizer
+        )
 
-    #     for epoch in range(0, 70):
-    #         logger.info("Epoch : %d", epoch)
-    #         cifar_trainer.update_lr(epoch, [30, 45, 60], args.gammas)
-    #         cifar_trainer.train(epoch)
+        for epoch in range(0, 70):
+            logger.info("Epoch : %d", epoch)
+            cifar_trainer.update_lr(epoch, [30, 45, 60], gammas)
+            cifar_trainer.train(epoch)
 
-    #     # Freeze the model
-    #     counter = 0
-    #     for name, param in myModel.named_parameters():
-    #         # Getting the length of total layers so I can freeze x% of layers
-    #         gen_len = sum(1 for _ in myModel.parameters())
-    #         if counter < int(gen_len * 0.5):
-    #             param.requires_grad = False
-    #             logger.warning(name)
-    #         else:
-    #             logger.info(name)
-    #         counter += 1
+        # Freeze the model
+        counter = 0
+        for name, param in myModel.named_parameters():
+            # Getting the length of total layers so I can freeze x% of layers
+            gen_len = sum(1 for _ in myModel.parameters())
+            if counter < int(gen_len * 0.5):
+                param.requires_grad = False
+                logger.warning(name)
+            else:
+                logger.info(name)
+            counter += 1
 
-    # # Define the optimizer used in the experiment
-    # optimizer = torch.optim.SGD(filter(lambda p: p.requires_grad, myModel.parameters()), args.lr,
-    #                             momentum=args.momentum,
-    #                             weight_decay=args.decay, nesterov=True)
+    # Define the optimizer used in the experiment
+    optimizer = torch.optim.SGD(
+        filter(lambda p: p.requires_grad, myModel.parameters()),
+        lr,
+        momentum=momentum,
+        weight_decay=decay,
+        nesterov=True,
+    )
 
-    # # Trainer object used for training
-    # my_trainer = trainer.Trainer(train_iterator, myModel, args.cuda, optimizer)
+    # Trainer object used for training
+    my_trainer = trainer.Trainer(train_iterator, myModel, cuda, optimizer)
 
-    # # Evaluator
-    # my_eval = trainer.EvaluatorFactory.get_evaluator("rmse", args.cuda)
-    # # Running epochs_class epochs
-    # for epoch in range(0, args.epochs):
-    #     logger.info("Epoch : %d", epoch)
-    #     my_trainer.update_lr(epoch, args.schedule, args.gammas)
-    #     my_trainer.train(epoch)
-    #     my_eval.evaluate(my_trainer.model, val_iterator)
+    # Evaluator
+    my_eval = trainer.EvaluatorFactory.get_evaluator("rmse", cuda)
+    # Running epochs_class epochs
+    for epoch in range(0, epochs):
+        logger.info("Epoch : %d", epoch)
+        my_trainer.update_lr(epoch, schedule, gammas)
+        my_trainer.train(epoch)
+        my_eval.evaluate(my_trainer.model, val_iterator)
 
-    # torch.save(myModel.state_dict(), my_experiment.path + args.dataset + "_" + args.model_type+ ".pb")
-    # my_experiment.store_json()
+    torch.save(
+        myModel.state_dict(), my_experiment.path + model_type + "_" + model + ".pb"
+    )
+    my_experiment.store_json()
 
 
 if __name__ == "__main__":
