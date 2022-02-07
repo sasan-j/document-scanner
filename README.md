@@ -3,3 +3,16 @@
 brew install ffmpeg
 ```
 
+
+```sh
+python main.py process-smartdoc ../datasets/SmartDoc/ ../data-doc/SmartDocProcessed/
+```
+
+
+```sh
+python main.py document-data-generator ../data-doc/SmartDocProcessed/ ../data-doc/SmartDocDocuments/
+```
+
+```sh
+python main.py corner-data-generator ../data-doc/SmartDocProcessed/ ../data-doc/SmartDocCorners/
+```
