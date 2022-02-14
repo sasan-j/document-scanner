@@ -1,6 +1,8 @@
 import random
 import numpy as np
 import cv2
+import json
+import pathlib
 
 
 def setup_logger(path):
@@ -23,6 +25,14 @@ def setup_logger(path):
     logger.addHandler(fh)
     logger.addHandler(ch)
     return logger
+
+
+class CustomEncoder(json.JSONEncoder):
+    def default(self, x):
+        if isinstance(x, pathlib.Path):
+            return str(x)
+        else:
+            return super().default(x)
 
 
 def sort_gt(gt):

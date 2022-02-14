@@ -2,6 +2,8 @@ import json
 import subprocess
 import pathlib
 
+from utils import CustomEncoder
+
 
 class Experiment:
     """
@@ -40,4 +42,4 @@ class Experiment:
 
     def store_json(self):
         with open(self.path / "JSONDump.txt", "w") as outfile:
-            json.dump(json.dumps(self.__dict__), outfile)
+            json.dump(json.dumps(self.__dict__, cls=CustomEncoder), outfile)
