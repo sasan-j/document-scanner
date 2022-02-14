@@ -1,6 +1,6 @@
 import json
-import os
 import subprocess
+import pathlib
 
 
 class Experiment:
@@ -8,34 +8,36 @@ class Experiment:
     Class to store results of any experiment
     """
 
-    def __init__(self, name, args, output_dir="../"):
+    def __init__(self, name, args, output_dir: pathlib.Path = pathlib.Path("../")):
         self.gitHash = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode(
             "utf-8"
         )
         print(self.gitHash)
         if args is not None:
             self.name = name
-            self.params = vars(args)
+            self.params = args
             self.results = {}
             self.dir = output_dir
 
             import datetime
 
             now = datetime.datetime.now()
-            rootFolder = str(now.day) + str(now.month) + str(now.year)
-            if not os.path.exists(output_dir + rootFolder):
-                os.makedirs(output_dir + rootFolder)
-            self.name = rootFolder + "/" + self.name
+            date_part = now.strftime("%Y-%m-%d")
+            time_part = now.strftime("%H-%M-%S")
+            if (
+                experiment_base := output_dir / self.name / date_part
+            ).exists() is False:
+                experiment_base.mkdir(parents=True)
             ver = 0
 
-            while os.path.exists(output_dir + self.name + "_" + str(ver)):
+            while (experiment_base / f"{time_part}_{ver}").exists():
                 ver += 1
 
-            os.makedirs(output_dir + self.name + "_" + str(ver))
-            self.path = output_dir + self.name + "_" + str(ver) + "/" + name
+            self.path = experiment_base / f"{time_part}_{ver}"
+            self.path.mkdir(parents=True)
 
             self.results["Temp Results"] = [[1, 2, 3, 4], [5, 6, 2, 6]]
 
     def store_json(self):
-        with open(self.path + "JSONDump.txt", "w") as outfile:
+        with open(self.path / "JSONDump.txt", "w") as outfile:
             json.dump(json.dumps(self.__dict__), outfile)
