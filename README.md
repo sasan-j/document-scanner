@@ -16,3 +16,8 @@ python main.py document-data-generator ../data-doc/SmartDocProcessed/ ../data-do
 ```sh
 python main.py corner-data-generator ../data-doc/SmartDocProcessed/ ../data-doc/SmartDocCorners/
 ```
+
+```sh
+# Train the corner model
+python main.py train --model-type corner --name test --train-dir ../data-doc/SmartDocCornersTrain/ --valid-dir ../data-doc/SmartDocCornersValid
+```

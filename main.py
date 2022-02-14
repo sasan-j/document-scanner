@@ -1,4 +1,3 @@
-from enum import Enum
 import logging
 import pathlib
 import shutil
@@ -16,13 +15,15 @@ from torch.utils.data import DataLoader
 
 import dataprocessor
 from dataprocessor import DatasetType
+from dataprocessor.loader import Loader
 from experiment import Experiment
 import models
+from models import Model
 import trainer
 import utils
 
 app = typer.Typer()
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("zebel-scanner")
 
 
 @app.command()
@@ -59,17 +60,6 @@ def process_smartdoc(
                             "panic",
                         ]
                     )
-
-
-class Model(str, Enum):
-    RESNET32 = "resnet32"
-    RESNET20 = "resnet20"
-    DENSENET = "densenet"
-
-
-class Loader(str, Enum):
-    RAM = "ram"
-    DISK = "disk"
 
 
 @app.command()
@@ -195,7 +185,7 @@ def corner_data_generator(
 
 @app.command()
 def train(
-    batch_size: int = typer.Option(default=32, help="The batch size"),
+    batch_size: int = typer.Option(default=64, help="The batch size"),
     lr: float = typer.Option(default=0.001, help="The learning rate"),
     epochs: int = typer.Option(default=10, help="The number of epochs"),
     schedule: List[int] = typer.Option(
@@ -213,10 +203,10 @@ def train(
     log_interval: int = typer.Option(
         default=10, help="The interval for logging - batches"
     ),
-    model: Model = typer.Option(default=Model.RESNET32, help="The model type"),
-    name: str = typer.Option(default="", help="Name of the experiment"),
+    model: Model = typer.Option(default=Model.RESNET20, help="The model type"),
+    name: str = typer.Option(default="untitled", help="Name of the experiment"),
     out_dir: pathlib.Path = typer.Option(
-        default="../",
+        default="../experiments/",
         help='Directory to store the results; a new folder "DDMMYYYY" will be created '
         "in the specified directory to save the results.",
     ),
@@ -240,7 +230,7 @@ def train(
     my_experiment = Experiment(name, locals(), out_dir)
 
     # Add logging support
-    # logger = utils.setup_logger(my_experiment.path)
+    logger = utils.setup_logger(my_experiment.path)
 
     cuda = cuda and torch.cuda.is_available()
 
@@ -335,9 +325,7 @@ def train(
         my_trainer.train(epoch)
         my_eval.evaluate(my_trainer.model, val_iterator)
 
-    torch.save(
-        myModel.state_dict(), my_experiment.path + model_type + "_" + model + ".pb"
-    )
+    torch.save(myModel.state_dict(), my_experiment.path / f"{model_type}_{model}.pb")
     my_experiment.store_json()
 
 

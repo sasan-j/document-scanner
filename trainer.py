@@ -6,7 +6,7 @@ from torch.autograd import Variable
 from tqdm import tqdm
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("zebel-scanner")
 
 
 class EvaluatorFactory:

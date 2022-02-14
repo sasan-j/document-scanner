@@ -1,3 +1,4 @@
+from enum import Enum
 import math
 
 import torchvision.models as models
@@ -5,6 +6,13 @@ import torch
 import torch.nn as nn
 from torch.nn import init
 import torch.nn.functional as F
+
+
+class Model(str, Enum):
+    RESNET32 = "resnet32"
+    RESNET20 = "resnet20"
+    RESNET8 = "resnet8"
+    DENSENET = "densenet"
 
 
 class DownsampleA(nn.Module):
@@ -253,9 +261,9 @@ class ModelFactory:
     @staticmethod
     def get_model(model_type, dataset):  # noqa C901
         if dataset == "document":
-            if model_type == "resnet":
+            if model_type == Model.RESNET20:
                 return resnet20()
-            elif model_type == "resnet8":
+            elif model_type == Model.RESNET8:
                 return resnet8(8)
             elif model_type == "shallow":
                 return MobileNet(8)
@@ -264,9 +272,9 @@ class ModelFactory:
             else:
                 raise NotImplementedError
         elif dataset == "corner":
-            if model_type == "resnet":
+            if model_type == Model.RESNET20:
                 return resnet20(2)
-            elif model_type == "resnet8":
+            elif model_type == Model.RESNET8:
                 return resnet8(2)
             elif model_type == "shallow":
                 return MobileNet(2)

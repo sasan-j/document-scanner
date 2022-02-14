@@ -1,3 +1,4 @@
+from enum import Enum
 import logging
 
 import torch.utils.data as td
@@ -5,7 +6,13 @@ import tqdm
 from PIL import Image
 from torchvision import transforms
 
-logger = logging.getLogger(__name__)
+
+logger = logging.getLogger("zebel-scanner")
+
+
+class Loader(str, Enum):
+    RAM = "ram"
+    DISK = "disk"
 
 
 class HddLoader(td.Dataset):
@@ -94,8 +101,10 @@ class LoaderFactory:
         pass
 
     @staticmethod
-    def get_loader(type, data, transform=None, cuda=False) -> td.Dataset:
-        if type == "hdd":
+    def get_loader(
+        type, data, input_size=None, transform=None, cuda=False
+    ) -> td.Dataset:
+        if type == Loader.DISK:
             return HddLoader(data, transform=transform, cuda=cuda)
-        elif type == "ram":
-            return RamLoader(data, transform=transform, cuda=cuda)
+        elif type == Loader.RAM:
+            return RamLoader(data, input_size, transform=transform, cuda=cuda)

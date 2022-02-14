@@ -49,6 +49,14 @@
             "console": "integratedTerminal",
             "args": [
                 "train",
+                "--model-type",
+                "corner",
+                "--name",
+                "test",
+                "--train-dir",
+                "../data-doc/SmartDocCornersTrain/",
+                "--valid-dir",
+                "../data-doc/SmartDocCornersValid/"
             ]
         }
     ]
