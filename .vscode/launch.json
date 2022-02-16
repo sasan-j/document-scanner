@@ -42,7 +42,7 @@
             ]
         },
         {
-            "name": "Train",
+            "name": "Train - Corner",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/main.py",
@@ -57,6 +57,24 @@
                 "../data-doc/SmartDocCornersTrain/",
                 "--valid-dir",
                 "../data-doc/SmartDocCornersValid/"
+            ]
+        },
+        {
+            "name": "Train - Document",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "console": "integratedTerminal",
+            "args": [
+                "train",
+                "--model-type",
+                "document",
+                "--name",
+                "test",
+                "--train-dir",
+                "../data-doc/SmartDocDocumentsTrain/",
+                "--valid-dir",
+                "../data-doc/SmartDocDocumentsValid/"
             ]
         }
     ]

@@ -103,6 +103,8 @@ class SmartDoc(Dataset):
         super().__init__("smartdoc")
         self.data = []
         self.labels = []
+        if type(directory) is not list:
+            self.dirs = [directory]
         self.train_transform = transforms.Compose(
             [
                 transforms.Resize([32, 32]),
@@ -114,14 +116,13 @@ class SmartDoc(Dataset):
         self.test_transform = transforms.Compose(
             [transforms.Resize([32, 32]), transforms.ToTensor()]
         )
-        for d in directory:
-            self.directory = d
+        for d in self.dirs:
             logger.info("Pass train/test data paths here")
             self.classes_list = {}
 
             file_names = []
-            print(self.directory, "gt.csv")
-            with open(os.path.join(self.directory, "gt.csv"), "r") as csvfile:
+            print(d, "gt.csv")
+            with open(os.path.join(d, "gt.csv"), "r") as csvfile:
                 spamreader = csv.reader(
                     csvfile, delimiter=",", quotechar="|", quoting=csv.QUOTE_MINIMAL
                 )
@@ -129,7 +130,7 @@ class SmartDoc(Dataset):
 
                 for row in spamreader:
                     file_names.append(row[0])
-                    self.data.append(os.path.join(self.directory, row[0]))
+                    self.data.append(os.path.join(d, row[0]))
                     test = row[1].replace("array", "")
                     self.labels.append((ast.literal_eval(test)))
         self.labels = np.array(self.labels)

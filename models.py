@@ -262,7 +262,7 @@ class ModelFactory:
     def get_model(model_type, dataset):  # noqa C901
         if dataset == "document":
             if model_type == Model.RESNET20:
-                return resnet20()
+                return resnet20(8)
             elif model_type == Model.RESNET8:
                 return resnet8(8)
             elif model_type == "shallow":
