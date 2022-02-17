@@ -9,8 +9,12 @@ python main.py process-smartdoc ../datasets/SmartDoc/ ../data-doc/SmartDocProces
 ```
 
 
+
+Generate dataset from processed smartdoc
 ```sh
-python main.py document-data-generator ../data-doc/SmartDocProcessed/ ../data-doc/SmartDocDocuments/
+python main.py document-data-generator ../data-doc/SmartDocProcessedTrain/ ../data-doc/SmartDocMaskedTrain/
+python main.py document-data-generator ../data-doc/SmartDocProcessedValid/ ../data-doc/SmartDocMaskedValid/
+
 ```
 
 ```sh

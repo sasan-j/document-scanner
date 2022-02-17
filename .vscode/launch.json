@@ -18,6 +18,18 @@
             ]
         },
         {
+            "name": "Generate Training Data New",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "console": "integratedTerminal",
+            "args": [
+                "document-data-generator",
+                "../data-doc/SmartDocProcessed/",
+                "../data-doc/SmartDocNew3/",
+            ]
+        },
+        {
             "name": "Generate Document Training Data",
             "type": "python",
             "request": "launch",
