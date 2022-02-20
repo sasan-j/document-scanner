@@ -5,8 +5,10 @@ import os
 import pathlib
 from typing import List, Union
 
+import cv2
 import numpy as np
-from torchvision import transforms
+import pandas as pd
+import transforms as T
 import xml.etree.ElementTree as ET
 
 import utils
@@ -105,17 +107,6 @@ class SmartDoc(Dataset):
         self.labels = []
         if type(directory) is not list:
             self.dirs = [directory]
-        self.train_transform = transforms.Compose(
-            [
-                transforms.Resize([32, 32]),
-                transforms.ColorJitter(1.5, 1.5, 0.9, 0.5),
-                transforms.ToTensor(),
-            ]
-        )
-
-        self.test_transform = transforms.Compose(
-            [transforms.Resize([32, 32]), transforms.ToTensor()]
-        )
         for d in self.dirs:
             logger.info("Pass train/test data paths here")
             self.classes_list = {}
@@ -153,17 +144,7 @@ class SmartDocCorner(Dataset):
         self.labels = []
         if type(directory) is not list:
             self.dirs = [directory]
-        self.train_transform = transforms.Compose(
-            [
-                transforms.Resize([32, 32]),
-                transforms.ColorJitter(0.5, 0.5, 0.5, 0.5),
-                transforms.ToTensor(),
-            ]
-        )
 
-        self.test_transform = transforms.Compose(
-            [transforms.Resize([32, 32]), transforms.ToTensor()]
-        )
         for d in self.dirs:
             logger.info("Pass train/test data paths here")
             self.classes_list = {}
@@ -199,3 +180,44 @@ class DatasetFactory:
             # then it must be corner
         else:
             return SmartDocCorner(directory)
+
+
+class SmartDocDataset(Dataset):
+    """The new dataset class used for training"""
+
+    def __init__(
+        self,
+        directory="data",
+        annotations_file="annotation.feather",
+        images_dir="images",
+    ):
+        if isinstance(directory, str):
+            directory = pathlib.Path(directory)
+        self.directory = directory
+        self.annotations_file = annotations_file
+        self.images_dir = images_dir
+        self.data = pd.read_feather(directory / annotations_file)
+        self.transforms = T.Compose(
+            [
+                T.ToPILImage(),
+                T.Resize([512, 512]),
+                # transforms.ColorJitter(1.5, 1.5, 0.9, 0.5),
+                T.PILToTensor(),
+            ]
+        )
+
+    def __getitem__(self, index):
+        img_path = self.directory / self.images_dir / self.data.image[index]
+        target = self.data.annotation[index].reshape((4, 2))
+        # img = read_image(str(img_path))
+        img = cv2.imread(str(img_path))
+        return self.transforms(img, SmartDocDataset.generate_mask(img, target))
+
+    def __len__(self):
+        return min(len(self.data), 5000)
+
+    @staticmethod
+    def generate_mask(image, annotation):
+        mask = np.zeros(image.shape[:2], dtype="uint8")
+        cv2.fillPoly(mask, [annotation], 255)
+        return mask

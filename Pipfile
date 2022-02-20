@@ -21,6 +21,7 @@ pyarrow = "*"
 [dev-packages]
 black = "*"
 pre-commit = "*"
+notebook = "*"
 
 [requires]
 python_version = "3.9"

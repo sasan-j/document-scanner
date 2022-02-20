@@ -17,10 +17,10 @@ import dataprocessor
 from dataprocessor import DatasetType
 from dataprocessor.loader import Loader
 from experiment import Experiment
-import models
 from models import Model
 import trainer
 import utils
+from unet import UNet
 
 app = typer.Typer()
 logger = logging.getLogger("zebel-scanner")
@@ -111,7 +111,7 @@ def document_data_generator(
 
 @app.command()
 def train(
-    batch_size: int = typer.Option(default=64, help="The batch size"),
+    batch_size: int = typer.Option(default=10, help="The batch size"),
     lr: float = typer.Option(default=0.001, help="The learning rate"),
     epochs: int = typer.Option(default=10, help="The number of epochs"),
     schedule: List[int] = typer.Option(
@@ -123,7 +123,6 @@ def train(
     ),
     momentum: float = typer.Option(default=0.9, help="The momentum for SGD"),
     cuda: bool = typer.Option(default=True, help="Use CUDA"),
-    pretrain: bool = typer.Option(default=False, help="Use pretrained weights"),
     debug: bool = typer.Option(default=False, help="Use debug mode"),
     seed: int = typer.Option(default=42, help="The seed for the random generator"),
     log_interval: int = typer.Option(
@@ -137,9 +136,6 @@ def train(
         "in the specified directory to save the results.",
     ),
     decay: float = typer.Option(default=0.00001, help="The decay for the optimizer"),
-    model_type: str = typer.Option(
-        default="document", help="Which model to train, document or corner"
-    ),
     loader: Loader = typer.Option(
         default=Loader.DISK,
         help="Loader to load data; hdd for reading from the hdd and ram for loading all data in the memory",
@@ -161,74 +157,27 @@ def train(
     cuda = cuda and torch.cuda.is_available()
 
     # Get the right dataset based on model_type
-    dataset_train = dataprocessor.DatasetFactory.get_dataset(train_dir, model_type)
-    dataset_val = dataprocessor.DatasetFactory.get_dataset(valid_dir, model_type)
+    dataset_train = dataprocessor.SmartDocDataset(directory=train_dir)
+    dataset_val = dataprocessor.SmartDocDataset(directory=valid_dir)
 
     # Fix the seed.
     torch.manual_seed(seed)
     if cuda:
         torch.cuda.manual_seed(seed)
+    kwargs = {"num_workers": 4, "pin_memory": False} if cuda else {}
 
-    train_dataset_loader = dataprocessor.LoaderFactory.get_loader(
-        loader, dataset_train.myData, transform=dataset_train.train_transform, cuda=cuda
+    train_dataloader = DataLoader(
+        dataset_train, batch_size=batch_size, shuffle=True, **kwargs
     )
-    # Loader used for training data
-    val_dataset_loader = dataprocessor.LoaderFactory.get_loader(
-        loader, dataset_val.myData, transform=dataset_train.test_transform, cuda=cuda
-    )
-    kwargs = {"num_workers": 1, "pin_memory": True} if cuda else {}
-
-    # Iterator to iterate over training data.
-    train_iterator = DataLoader(
-        train_dataset_loader, batch_size=batch_size, shuffle=True, **kwargs
-    )
-    # Iterator to iterate over training data.
-    val_iterator = DataLoader(
-        val_dataset_loader, batch_size=batch_size, shuffle=True, **kwargs
+    valid_dataloader = DataLoader(
+        dataset_val, batch_size=batch_size, shuffle=True, **kwargs
     )
 
     # # Get the required model
-    myModel = models.ModelFactory.get_model(model, model_type)
+    myModel = UNet(retain_dim=True)
+    unet = myModel.type(torch.float16)
     if cuda:
         myModel.cuda()
-
-    # Should I pretrain the model on CIFAR?
-    if pretrain:
-        trainset = dataprocessor.DatasetFactory.get_dataset(None, "CIFAR")
-        train_iterator_cifar = DataLoader(
-            trainset, batch_size=32, shuffle=True, num_workers=2
-        )
-
-        # Define the optimizer used in the experiment
-        cifar_optimizer = torch.optim.SGD(
-            myModel.parameters(),
-            lr,
-            momentum=momentum,
-            weight_decay=decay,
-            nesterov=True,
-        )
-
-        # Trainer object used for training
-        cifar_trainer = trainer.CIFARTrainer(
-            train_iterator_cifar, myModel, cuda, cifar_optimizer
-        )
-
-        for epoch in range(0, 70):
-            logger.info("Epoch : %d", epoch)
-            cifar_trainer.update_lr(epoch, [30, 45, 60], gammas)
-            cifar_trainer.train(epoch)
-
-        # Freeze the model
-        counter = 0
-        for name, param in myModel.named_parameters():
-            # Getting the length of total layers so I can freeze x% of layers
-            gen_len = sum(1 for _ in myModel.parameters())
-            if counter < int(gen_len * 0.5):
-                param.requires_grad = False
-                logger.warning(name)
-            else:
-                logger.info(name)
-            counter += 1
 
     # Define the optimizer used in the experiment
     optimizer = torch.optim.SGD(
@@ -240,18 +189,19 @@ def train(
     )
 
     # Trainer object used for training
-    my_trainer = trainer.Trainer(train_iterator, myModel, cuda, optimizer)
+    my_trainer = trainer.Trainer(train_dataloader, myModel, cuda, optimizer)
 
     # Evaluator
-    my_eval = trainer.EvaluatorFactory.get_evaluator("rmse", cuda)
+    my_eval = trainer.Evaluator(cuda)
+
     # Running epochs_class epochs
     for epoch in range(0, epochs):
         logger.info("Epoch : %d", epoch)
         my_trainer.update_lr(epoch, schedule, gammas)
         my_trainer.train(epoch)
-        my_eval.evaluate(my_trainer.model, val_iterator)
+        my_eval.evaluate(my_trainer.model, valid_dataloader)
 
-    torch.save(myModel.state_dict(), my_experiment.path / f"{model_type}_{model}.pb")
+    torch.save(myModel.state_dict(), my_experiment.path / f"{model}.pb")
     my_experiment.store_json()
 
 
