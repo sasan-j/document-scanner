@@ -36,5 +36,5 @@ class ToPILImage:
 class PILToTensor:
     def __call__(self, image, target):
         image = TVF.pil_to_tensor(image).type(torch.float16) / 255
-        target = torch.as_tensor(np.array(target), dtype=torch.int8)
+        target = torch.as_tensor(np.array(target) / 255, dtype=torch.float16)
         return image, target

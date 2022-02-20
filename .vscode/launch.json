@@ -88,6 +88,22 @@
                 "--valid-dir",
                 "../data-doc/SmartDocDocumentsValid/"
             ]
+        },
+        {
+            "name": "Train - UNet",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "console": "integratedTerminal",
+            "args": [
+                "train",
+                "--name",
+                "debug",
+                "--train-dir",
+                "../data-doc/SmartDocMaskedTrain/",
+                "--valid-dir",
+                "../data-doc/SmartDocMaskedValid/"
+            ]
         }
     ]
 }

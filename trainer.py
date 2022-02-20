@@ -10,11 +10,13 @@ from tqdm import tqdm
 logger = logging.getLogger("zebel-scanner")
 
 
-def dice_coef(y_true, y_pred, smooth=1000.0):
-    y_true_f = y_true.contiguous()
-    y_pred_f = y_pred.contiguous()
-    intersection = (y_true_f * y_pred_f).sum()
-    return (2.0 * intersection + smooth) / (y_true_f.sum() + y_pred_f.sum() + smooth)
+def dice_coef(y_true, y_pred, epsilon=1e-6):
+    y_true_f = y_true.reshape(-1).float()
+    y_pred_f = y_pred.squeeze().reshape(-1).float()
+    intersection = torch.dot(y_true_f, y_pred_f)
+    return (2.0 * intersection + epsilon) / (
+        torch.sum(y_true_f) + torch.sum(y_pred_f) + epsilon
+    )
 
 
 def dice_loss(y_true, y_pred):
