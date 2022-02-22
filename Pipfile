@@ -19,6 +19,8 @@ pandas = "*"
 pyarrow = "*"
 tensorboard = "*"
 setuptools = "==59.5.0"
+segmentation-models-pytorch = "*"
+pytorch-lightning = "==1.5.4"
 
 [dev-packages]
 black = "*"

@@ -13,6 +13,7 @@ import torch
 from torch.utils.data import DataLoader
 import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
+import segmentation_models_pytorch as smp
 
 
 import dataprocessor
@@ -173,7 +174,7 @@ def train(
 
     # # Get the required model
     myModel = UNet(retain_dim=True)
-    myModel = myModel.type(torch.float16)
+    myModel = myModel.type(torch.float32)
 
     def init_weights(m):
         if type(m) == nn.Linear:
@@ -185,6 +186,16 @@ def train(
     if cuda:
         myModel.cuda()
 
+    # dataiter = iter(train_dataloader)
+    # images, labels = dataiter.next()
+    # if cuda:
+    #     images = images.cuda()
+
+    # # add_graph() will trace the sample input through your model,
+    # # and render it as a graph.
+    # tb_writer.add_graph(myModel, images)
+    # tb_writer.flush()
+
     # Define the optimizer used in the experiment
     optimizer = torch.optim.SGD(
         # filter(lambda p: p.requires_grad, myModel.parameters()),
@@ -194,10 +205,10 @@ def train(
         weight_decay=decay,
         nesterov=True,
     )
-
+    loss_fn = smp.losses.DiceLoss(smp.losses.BINARY_MODE, from_logits=True)
     # Trainer object used for training
     my_trainer = trainer.Trainer(
-        train_dataloader, valid_dataloader, myModel, cuda, optimizer, tb_writer
+        train_dataloader, valid_dataloader, myModel, cuda, optimizer, loss_fn, tb_writer
     )
 
     # Running epochs_class epochs

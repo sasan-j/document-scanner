@@ -82,6 +82,7 @@ class Trainer:
         model,
         cuda,
         optimizer,
+        loss_fn,
         tb_writer,
     ):
         super().__init__()
@@ -90,7 +91,7 @@ class Trainer:
         self.valid_iterator = valid_iterator
         self.model = model
         self.optimizer = optimizer
-        self.criterion = dice_loss
+        self.loss_fn = loss_fn
         self.tb_writer = tb_writer
 
     def update_lr(self, epoch, schedule, gammas):
@@ -120,7 +121,7 @@ class Trainer:
             y_pred = self.model(img)
             # print (response[0])
             # print (target[0])
-            loss = self.criterion(target, y_pred)
+            loss = self.loss_fn(y_pred, target)
             if lossAvg is None:
                 lossAvg = loss
             else:
@@ -128,7 +129,7 @@ class Trainer:
             # logger.debug("Cur loss %s", str(loss))
             loss.backward()
             self.optimizer.step()
-            if counter % 100 == 0:
+            if counter % 200 == 0:
                 loss_valid_avg = self.evaluate()
                 self.tb_writer.add_scalars(
                     "train/loss",
@@ -149,7 +150,7 @@ class Trainer:
                     img, target = img.cuda(), target.cuda()
 
                 y_pred = self.model(img)
-                loss = self.criterion(y_pred, target)
+                loss = self.loss_fn(y_pred, target)
                 if lossAvg is None:
                     lossAvg = loss
                 else:

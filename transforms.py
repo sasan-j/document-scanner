@@ -1,4 +1,3 @@
-import numpy as np
 import torch
 from torchvision.transforms import functional as TVF
 from torchvision import transforms
@@ -35,6 +34,7 @@ class ToPILImage:
 
 class PILToTensor:
     def __call__(self, image, target):
-        image = TVF.pil_to_tensor(image).type(torch.float16) / 255
-        target = torch.as_tensor(np.array(target), dtype=torch.float16) / 255
+        image = TVF.pil_to_tensor(image).type(torch.float32) / 255
+        target = TVF.pil_to_tensor(target).type(torch.float32) / 255
+        # target = torch.as_tensor(np.array(target), dtype=torch.float16) / 255
         return image, target
