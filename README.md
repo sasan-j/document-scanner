@@ -22,7 +22,7 @@ python main.py corner-data-generator ../data-doc/SmartDocProcessed/ ../data-doc/
 ```
 
 ```sh
-python main.py train --model-type corner --name t1 --train-dir ../data-doc/SmartDocMaskedTrain --valid-dir ../../data-doc/SmartDocMaskedValid
+python main.py train --name t1 --train-dir ../data-doc/SmartDocMaskedTrain --valid-dir ../../data-doc/SmartDocMaskedValid
 ```
 
 

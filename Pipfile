@@ -17,11 +17,14 @@ matplotlib = "*"
 black = "*"
 pandas = "*"
 pyarrow = "*"
+tensorboard = "*"
+setuptools = "==59.5.0"
 
 [dev-packages]
 black = "*"
 pre-commit = "*"
 notebook = "*"
+torch-tb-profiler = "*"
 
 [requires]
 python_version = "3.9"

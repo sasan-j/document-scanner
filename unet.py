@@ -60,8 +60,8 @@ class Decoder(nn.Module):
 class UNet(nn.Module):
     def __init__(
         self,
-        enc_chs=(3, 64, 128, 256, 512),
-        dec_chs=(512, 256, 128, 64),
+        enc_chs=(1, 32, 64, 128, 256, 512),
+        dec_chs=(512, 256, 128, 64, 32),
         num_class=1,
         retain_dim=False,
         out_size=(512, 512),

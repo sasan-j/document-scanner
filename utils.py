@@ -5,17 +5,21 @@ import json
 import pathlib
 
 
-def setup_logger(path):
+def setup_logger(path, level="info"):
     import logging
 
+    log_level = logging.INFO
+    if level == "debug":
+        log_level = logging.DEBUG
+
     logger = logging.getLogger("zebel-scanner")
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(log_level)
 
     fh = logging.FileHandler(path / "log.txt")
-    fh.setLevel(logging.DEBUG)
+    fh.setLevel(log_level)
 
     ch = logging.StreamHandler()
-    ch.setLevel(logging.DEBUG)
+    ch.setLevel(log_level)
 
     formatter = logging.Formatter(
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

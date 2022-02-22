@@ -11,11 +11,12 @@ import typer
 from tqdm import tqdm
 import torch
 from torch.utils.data import DataLoader
+import torch.nn as nn
+from torch.utils.tensorboard import SummaryWriter
 
 
 import dataprocessor
 from dataprocessor import DatasetType
-from dataprocessor.loader import Loader
 from experiment import Experiment
 from models import Model
 import trainer
@@ -136,10 +137,6 @@ def train(
         "in the specified directory to save the results.",
     ),
     decay: float = typer.Option(default=0.00001, help="The decay for the optimizer"),
-    loader: Loader = typer.Option(
-        default=Loader.DISK,
-        help="Loader to load data; hdd for reading from the hdd and ram for loading all data in the memory",
-    ),
     train_dir: pathlib.Path = typer.Option(
         default="../train/", help="The directory to store the training data"
     ),
@@ -150,9 +147,10 @@ def train(
 
     # Define an experiment.
     my_experiment = Experiment(name, locals(), out_dir)
+    tb_writer = SummaryWriter(log_dir=str(my_experiment.path / "tensorboard"))
 
     # Add logging support
-    logger = utils.setup_logger(my_experiment.path)
+    logger = utils.setup_logger(my_experiment.path, level="info")
 
     cuda = cuda and torch.cuda.is_available()
 
@@ -164,7 +162,7 @@ def train(
     torch.manual_seed(seed)
     if cuda:
         torch.cuda.manual_seed(seed)
-    kwargs = {"num_workers": 4, "pin_memory": False} if cuda else {}
+    kwargs = {"num_workers": 0, "pin_memory": True} if cuda else {}
 
     train_dataloader = DataLoader(
         dataset_train, batch_size=batch_size, shuffle=True, **kwargs
@@ -175,13 +173,22 @@ def train(
 
     # # Get the required model
     myModel = UNet(retain_dim=True)
-    unet = myModel.type(torch.float16)
+    myModel = myModel.type(torch.float16)
+
+    def init_weights(m):
+        if type(m) == nn.Linear:
+            torch.nn.init.kaiming_uniform_(m.weight)
+
+    # Applying it to our net
+    myModel.apply(init_weights)
+
     if cuda:
         myModel.cuda()
 
     # Define the optimizer used in the experiment
     optimizer = torch.optim.SGD(
-        filter(lambda p: p.requires_grad, myModel.parameters()),
+        # filter(lambda p: p.requires_grad, myModel.parameters()),
+        myModel.parameters(),
         lr,
         momentum=momentum,
         weight_decay=decay,
@@ -189,17 +196,16 @@ def train(
     )
 
     # Trainer object used for training
-    my_trainer = trainer.Trainer(train_dataloader, myModel, cuda, optimizer)
-
-    # Evaluator
-    my_eval = trainer.Evaluator(cuda)
+    my_trainer = trainer.Trainer(
+        train_dataloader, valid_dataloader, myModel, cuda, optimizer, tb_writer
+    )
 
     # Running epochs_class epochs
     for epoch in range(0, epochs):
         logger.info("Epoch : %d", epoch)
         my_trainer.update_lr(epoch, schedule, gammas)
         my_trainer.train(epoch)
-        my_eval.evaluate(my_trainer.model, valid_dataloader)
+        tb_writer.flush()
 
     torch.save(myModel.state_dict(), my_experiment.path / f"{model}.pb")
     my_experiment.store_json()
