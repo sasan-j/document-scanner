@@ -210,7 +210,8 @@ class SmartDocDataset(Dataset):
         img_path = self.directory / self.images_dir / self.data.image[index]
         target = self.data.annotation[index].reshape((4, 2))
         # img = read_image(str(img_path))
-        img = cv2.imread(str(img_path), cv2.IMREAD_GRAYSCALE)
+        # img = cv2.imread(str(img_path), cv2.IMREAD_GRAYSCALE)
+        img = cv2.imread(str(img_path))
         return self.transforms(img, SmartDocDataset.generate_mask(img, target))
 
     def __len__(self):

@@ -108,9 +108,9 @@ class Trainer:
                     self.current_lr *= gammas[temp]
 
     def train(self, epoch):
-        self.model.train(True)
         lossAvg = None
-        counter = 0
+        counter = 1
+        self.model.train(True)
         for img, target in tqdm(self.train_iterator, position=0):
             if self.cuda:
                 img, target = img.cuda(), target.cuda()
@@ -129,13 +129,14 @@ class Trainer:
             # logger.debug("Cur loss %s", str(loss))
             loss.backward()
             self.optimizer.step()
-            if counter % 200 == 0:
+            if (counter % int(len(self.train_iterator) / 3)) == 0:
                 loss_valid_avg = self.evaluate()
                 self.tb_writer.add_scalars(
                     "train/loss",
                     {"Training": lossAvg / counter, "Validation": loss_valid_avg},
                     epoch * len(self.train_iterator) + counter,
                 )
+                self.model.train(True)
             counter += 1
 
         lossAvg /= len(self.train_iterator)

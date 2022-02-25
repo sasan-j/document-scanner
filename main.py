@@ -11,7 +11,6 @@ import typer
 from tqdm import tqdm
 import torch
 from torch.utils.data import DataLoader
-import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 import segmentation_models_pytorch as smp
 
@@ -22,7 +21,6 @@ from experiment import Experiment
 from models import Model
 import trainer
 import utils
-from unet import UNet
 
 app = typer.Typer()
 logger = logging.getLogger("zebel-scanner")
@@ -114,7 +112,7 @@ def document_data_generator(
 @app.command()
 def train(
     batch_size: int = typer.Option(default=10, help="The batch size"),
-    lr: float = typer.Option(default=0.001, help="The learning rate"),
+    lr: float = typer.Option(default=0.0001, help="The learning rate"),
     epochs: int = typer.Option(default=10, help="The number of epochs"),
     schedule: List[int] = typer.Option(
         default=[10, 20, 30], help="The schedule for decreasing the learning rate"
@@ -163,25 +161,33 @@ def train(
     torch.manual_seed(seed)
     if cuda:
         torch.cuda.manual_seed(seed)
-    kwargs = {"num_workers": 0, "pin_memory": True} if cuda else {}
+    kwargs = {"num_workers": 4, "pin_memory": True} if cuda else {}
 
     train_dataloader = DataLoader(
         dataset_train, batch_size=batch_size, shuffle=True, **kwargs
     )
     valid_dataloader = DataLoader(
-        dataset_val, batch_size=batch_size, shuffle=True, **kwargs
+        dataset_val, batch_size=batch_size, shuffle=False, **kwargs
     )
 
     # # Get the required model
-    myModel = UNet(retain_dim=True)
-    myModel = myModel.type(torch.float32)
+    # myModel = UNet(retain_dim=True)
+    # myModel = myModel.type(torch.float32)
+    myModel = smp.Unet(
+        encoder_name="mobilenet_v2",  # choose encoder, e.g. mobilenet_v2 or efficientnet-b7
+        encoder_weights="imagenet",  # use `imagenet` pre-trained weights for encoder initialization
+        # encoder_depth=4,
+        # decoder_channels=(256, 128, 64, 32),
+        in_channels=3,  # model input channels (1 for gray-scale images, 3 for RGB, etc.)
+        classes=1,  # model output channels (number of classes in your dataset)
+    )
 
-    def init_weights(m):
-        if type(m) == nn.Linear:
-            torch.nn.init.kaiming_uniform_(m.weight)
+    # def init_weights(m):
+    #     if type(m) == nn.Linear:
+    #         torch.nn.init.kaiming_uniform_(m.weight)
 
-    # Applying it to our net
-    myModel.apply(init_weights)
+    # # Applying it to our net
+    # myModel.apply(init_weights)
 
     if cuda:
         myModel.cuda()
