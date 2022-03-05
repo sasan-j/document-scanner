@@ -12,10 +12,10 @@ import typer
 from tqdm import tqdm
 import torch
 from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.plugins import DDPPlugin
+from pytorch_lightning.callbacks import ModelCheckpoint
 
 
 import dataprocessor
@@ -147,7 +147,7 @@ def train(
 
     # Define an experiment.
     my_experiment = Experiment(name, locals(), out_dir)
-    tb_writer = SummaryWriter(log_dir=str(my_experiment.path / "tensorboard"))
+    # tb_writer = SummaryWriter(log_dir=str(my_experiment.path / "tensorboard"))
 
     # Add logging support
     logger = utils.setup_logger(my_experiment.path, level="info")
@@ -172,8 +172,13 @@ def train(
     )
 
     model = ScannerModel("unet", "mobilenet_v2", "imagenet", 3, 1)
-    tb_logger = TensorBoardLogger("tb_logs", name="unet")
+    tb_logger = TensorBoardLogger(my_experiment.path, name="unet", sub_dir="tb")
 
+    checkpoint_callback = ModelCheckpoint(
+        dirpath=my_experiment.path / "checkpoints_top",
+        save_top_k=2,
+        monitor="valid_dataset_iou",
+    )
     trainer = pl.Trainer(
         default_root_dir=str(my_experiment.path),
         gpus=1,
@@ -182,7 +187,8 @@ def train(
         precision=16,
         max_epochs=5,
         # max_time="00:12:00:00",
-        # logger=tb_logger
+        logger=tb_logger,
+        callbacks=[checkpoint_callback],
     )
 
     trainer.fit(
