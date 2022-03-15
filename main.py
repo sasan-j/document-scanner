@@ -3,6 +3,7 @@ import pathlib
 import shutil
 from subprocess import call
 from typing import List
+from pprint import pprint
 
 
 import cv2
@@ -11,16 +12,17 @@ import typer
 from tqdm import tqdm
 import torch
 from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter
-import segmentation_models_pytorch as smp
+import pytorch_lightning as pl
+from pytorch_lightning.loggers import TensorBoardLogger
+from pytorch_lightning.plugins import DDPPlugin
+from pytorch_lightning.callbacks import ModelCheckpoint
 
 
 import dataprocessor
 from dataprocessor import DatasetType
 from experiment import Experiment
-from models import Model
-import trainer
 import utils
+from model import ScannerModel
 
 app = typer.Typer()
 logger = logging.getLogger("zebel-scanner")
@@ -128,7 +130,6 @@ def train(
     log_interval: int = typer.Option(
         default=10, help="The interval for logging - batches"
     ),
-    model: Model = typer.Option(default=Model.RESNET20, help="The model type"),
     name: str = typer.Option(default="untitled", help="Name of the experiment"),
     out_dir: pathlib.Path = typer.Option(
         default="../experiments/",
@@ -146,7 +147,7 @@ def train(
 
     # Define an experiment.
     my_experiment = Experiment(name, locals(), out_dir)
-    tb_writer = SummaryWriter(log_dir=str(my_experiment.path / "tensorboard"))
+    # tb_writer = SummaryWriter(log_dir=str(my_experiment.path / "tensorboard"))
 
     # Add logging support
     logger = utils.setup_logger(my_experiment.path, level="info")
@@ -170,17 +171,38 @@ def train(
         dataset_val, batch_size=batch_size, shuffle=False, **kwargs
     )
 
-    # # Get the required model
-    # myModel = UNet(retain_dim=True)
-    # myModel = myModel.type(torch.float32)
-    myModel = smp.Unet(
-        encoder_name="mobilenet_v2",  # choose encoder, e.g. mobilenet_v2 or efficientnet-b7
-        encoder_weights="imagenet",  # use `imagenet` pre-trained weights for encoder initialization
-        # encoder_depth=4,
-        # decoder_channels=(256, 128, 64, 32),
-        in_channels=3,  # model input channels (1 for gray-scale images, 3 for RGB, etc.)
-        classes=1,  # model output channels (number of classes in your dataset)
+    model = ScannerModel("unet", "mobilenet_v2", "imagenet", 3, 1)
+    tb_logger = TensorBoardLogger(my_experiment.path, name="unet", sub_dir="tb")
+
+    checkpoint_callback = ModelCheckpoint(
+        dirpath=my_experiment.path / "checkpoints_top",
+        save_top_k=2,
+        monitor="valid_dataset_iou",
     )
+    trainer = pl.Trainer(
+        default_root_dir=str(my_experiment.path),
+        gpus=1,
+        # strategy="ddp",
+        strategy=DDPPlugin(find_unused_parameters=False),
+        precision=16,
+        max_epochs=5,
+        # max_time="00:12:00:00",
+        logger=tb_logger,
+        callbacks=[checkpoint_callback],
+    )
+
+    trainer.fit(
+        model,
+        train_dataloaders=train_dataloader,
+        val_dataloaders=valid_dataloader,
+    )
+    # run validation dataset
+    valid_metrics = trainer.validate(model, dataloaders=valid_dataloader, verbose=False)
+    pprint(valid_metrics)
+
+    # run test dataset
+    # test_metrics = trainer.test(model, dataloaders=test_dataloader, verbose=False)
+    # pprint(test_metrics)
 
     # def init_weights(m):
     #     if type(m) == nn.Linear:
@@ -188,9 +210,6 @@ def train(
 
     # # Applying it to our net
     # myModel.apply(init_weights)
-
-    if cuda:
-        myModel.cuda()
 
     # dataiter = iter(train_dataloader)
     # images, labels = dataiter.next()
@@ -202,30 +221,8 @@ def train(
     # tb_writer.add_graph(myModel, images)
     # tb_writer.flush()
 
-    # Define the optimizer used in the experiment
-    optimizer = torch.optim.SGD(
-        # filter(lambda p: p.requires_grad, myModel.parameters()),
-        myModel.parameters(),
-        lr,
-        momentum=momentum,
-        weight_decay=decay,
-        nesterov=True,
-    )
-    loss_fn = smp.losses.DiceLoss(smp.losses.BINARY_MODE, from_logits=True)
-    # Trainer object used for training
-    my_trainer = trainer.Trainer(
-        train_dataloader, valid_dataloader, myModel, cuda, optimizer, loss_fn, tb_writer
-    )
-
-    # Running epochs_class epochs
-    for epoch in range(0, epochs):
-        logger.info("Epoch : %d", epoch)
-        my_trainer.update_lr(epoch, schedule, gammas)
-        my_trainer.train(epoch)
-        tb_writer.flush()
-
-    torch.save(myModel.state_dict(), my_experiment.path / f"{model}.pb")
-    my_experiment.store_json()
+    # torch.save(model.state_dict(), my_experiment.path / f"{model}.pb")
+    # my_experiment.store_json()
 
 
 if __name__ == "__main__":

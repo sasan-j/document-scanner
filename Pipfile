@@ -19,7 +19,7 @@ pandas = "*"
 pyarrow = "*"
 tensorboard = "*"
 setuptools = "==59.5.0"
-segmentation-models-pytorch = "*"
+segmentation-models-pytorch = {git = "https://github.com/qubvel/segmentation_models.pytorch"}
 pytorch-lightning = "==1.5.4"
 
 [dev-packages]
