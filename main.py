@@ -13,10 +13,11 @@ from tqdm import tqdm
 import torch
 from torch.utils.data import DataLoader
 import pytorch_lightning as pl
-from pytorch_lightning.loggers import TensorBoardLogger
+from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from pytorch_lightning.plugins import DDPPlugin
-from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 
+import wandb
 
 import dataprocessor
 from dataprocessor import DatasetType
@@ -115,7 +116,7 @@ def document_data_generator(
 def train(
     batch_size: int = typer.Option(default=10, help="The batch size"),
     lr: float = typer.Option(default=0.0001, help="The learning rate"),
-    epochs: int = typer.Option(default=10, help="The number of epochs"),
+    epochs: int = typer.Option(default=3, help="The number of epochs"),
     schedule: List[int] = typer.Option(
         default=[10, 20, 30], help="The schedule for decreasing the learning rate"
     ),
@@ -123,6 +124,19 @@ def train(
         default=[0.1, 0.1, 0.1],
         help="LR is multiplied by gamma[k] on schedule[k], number of gammas should be equal to schedule",
     ),
+    arch: str = typer.Option(
+        default="unet",
+        help="The architecture to use, one of Unet,UnetPlusPlus,MAnet,Linknet,FPN,PSPNet,DeepLabV3,DeepLabV3Plus,PAN",
+    ),
+    encoder: str = typer.Option(
+        default="mobilenet_v2",
+        help="The endcoder to use, one of mobilenet_v2,resnet18,resnet34,resnet50,resnet101,resnet152",
+    ),
+    encoder_weights: str = typer.Option(
+        default="imagenet", help="The weights to use for the encoder"
+    ),
+    width: int = typer.Option(default=224, help="The width of the input image"),
+    height: int = typer.Option(default=224, help="The height of the input image"),
     momentum: float = typer.Option(default=0.9, help="The momentum for SGD"),
     cuda: bool = typer.Option(default=True, help="Use CUDA"),
     debug: bool = typer.Option(default=False, help="Use debug mode"),
@@ -145,6 +159,20 @@ def train(
     ),
 ):
 
+    config = {
+        "seed": seed,
+        "batch_size": batch_size,
+        "architecture": arch,
+        "encoder": encoder,
+        "encoder_weights": encoder_weights,
+        "epochs": epochs,
+        "width": width,
+        "height": height,
+        "auto_lr_find": True,
+    }
+
+    wandb.init(project="zebel-scanner", config=config)
+
     # Define an experiment.
     my_experiment = Experiment(name, locals(), out_dir)
     # tb_writer = SummaryWriter(log_dir=str(my_experiment.path / "tensorboard"))
@@ -155,8 +183,12 @@ def train(
     cuda = cuda and torch.cuda.is_available()
 
     # Get the right dataset based on model_type
-    dataset_train = dataprocessor.SmartDocDataset(directory=train_dir)
-    dataset_val = dataprocessor.SmartDocDataset(directory=valid_dir)
+    dataset_train = dataprocessor.SmartDocDataset(
+        directory=train_dir, height=height, width=width
+    )
+    dataset_val = dataprocessor.SmartDocDataset(
+        directory=valid_dir, height=height, width=width
+    )
 
     # Fix the seed.
     torch.manual_seed(seed)
@@ -171,24 +203,29 @@ def train(
         dataset_val, batch_size=batch_size, shuffle=False, **kwargs
     )
 
-    model = ScannerModel("unet", "mobilenet_v2", "imagenet", 3, 1)
-    tb_logger = TensorBoardLogger(my_experiment.path, name="unet", sub_dir="tb")
+    model = ScannerModel(arch, encoder, encoder_weights, 3, 1)
+    tb_logger = TensorBoardLogger(my_experiment.path, name=name, sub_dir="tb")
+    wandb_logger = WandbLogger(name=name)
 
     checkpoint_callback = ModelCheckpoint(
         dirpath=my_experiment.path / "checkpoints_top",
         save_top_k=2,
         monitor="valid_dataset_iou",
     )
+    # scheduler = LinearWarmupCosineAnnealingLR(optimizer, warmup_epochs=10, max_epochs=40)
+    lr_monitor = LearningRateMonitor(logging_interval="step")
     trainer = pl.Trainer(
         default_root_dir=str(my_experiment.path),
         gpus=1,
         # strategy="ddp",
         strategy=DDPPlugin(find_unused_parameters=False),
         precision=16,
-        max_epochs=5,
+        max_epochs=epochs,
         # max_time="00:12:00:00",
-        logger=tb_logger,
-        callbacks=[checkpoint_callback],
+        logger=[tb_logger, wandb_logger],
+        callbacks=[checkpoint_callback, lr_monitor],
+        flush_logs_every_n_steps=100,
+        auto_lr_find=True,
     )
 
     trainer.fit(
@@ -200,29 +237,10 @@ def train(
     valid_metrics = trainer.validate(model, dataloaders=valid_dataloader, verbose=False)
     pprint(valid_metrics)
 
-    # run test dataset
-    # test_metrics = trainer.test(model, dataloaders=test_dataloader, verbose=False)
-    # pprint(test_metrics)
-
-    # def init_weights(m):
-    #     if type(m) == nn.Linear:
-    #         torch.nn.init.kaiming_uniform_(m.weight)
-
-    # # Applying it to our net
-    # myModel.apply(init_weights)
-
-    # dataiter = iter(train_dataloader)
-    # images, labels = dataiter.next()
-    # if cuda:
-    #     images = images.cuda()
-
-    # # add_graph() will trace the sample input through your model,
-    # # and render it as a graph.
-    # tb_writer.add_graph(myModel, images)
-    # tb_writer.flush()
-
-    # torch.save(model.state_dict(), my_experiment.path / f"{model}.pb")
-    # my_experiment.store_json()
+    torch.save(
+        model.state_dict(),
+        my_experiment.path / f"{arch}-{encoder}-{encoder_weights}.pb",
+    )
 
 
 if __name__ == "__main__":

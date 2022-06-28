@@ -190,17 +190,23 @@ class SmartDocDataset(Dataset):
         directory="data",
         annotations_file="annotation.feather",
         images_dir="images",
+        height=224,
+        width=None,
     ):
         if isinstance(directory, str):
             directory = pathlib.Path(directory)
         self.directory = directory
         self.annotations_file = annotations_file
         self.images_dir = images_dir
+        self.height = height
+        self.width = width
+        if width is None:
+            self.width = height
         self.data = pd.read_feather(directory / annotations_file)
         self.transforms = T.Compose(
             [
                 T.ToPILImage(),
-                T.Resize([512, 512]),
+                T.Resize([self.width, self.height]),
                 # transforms.ColorJitter(1.5, 1.5, 0.9, 0.5),
                 T.PILToTensor(),
             ]

@@ -21,6 +21,7 @@ class ScannerModel(pl.LightningModule):
         self.register_buffer("mean", torch.tensor(params["mean"]).view(1, 3, 1, 1))
 
         self.loss_fn = smp.losses.DiceLoss(smp.losses.BINARY_MODE, from_logits=True)
+        self.save_hyperparameters()
 
     def forward(self, image):
         # normalize
@@ -29,7 +30,6 @@ class ScannerModel(pl.LightningModule):
         return out
 
     def shared_step(self, batch, stage):
-
         # image = batch["image"]
         image = batch[0]
 
