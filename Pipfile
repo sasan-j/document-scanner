@@ -3,13 +3,18 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 name = "pypi"
 
+[[source]]
+name = "pytorch"
+url = "https://download.pytorch.org/whl/cu116"
+verify_ssl = true
+
 [packages]
 tqdm = "*"
 opencv-python = "*"
 pillow = "*"
 polygon3 = "*"
-torch = "==1.10.2"
-torchvision = "*"
+torch = {index = "pytorch", version = "==1.12.1+cu116"}
+torchvision = {index = "pytorch", version = "==0.13.1+cu116"}
 torchnet = "*"
 typer = "*"
 ipykernel = "*"
@@ -32,6 +37,3 @@ coremltools = "*"
 
 [requires]
 python_version = "3.9"
-
-[pipenv]
-allow_prereleases = true
